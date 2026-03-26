@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Disparos WhatsApp</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     TELA: SETUP SUPABASE (primeiro acesso)
+══════════════════════════════════════════ -->
+<div id="screen-setup" class="screen">
+  <div class="center-box">
+    <div class="logo">📲</div>
+    <h1 class="center-title">Disparos <em>WhatsApp</em></h1>
+    <p class="subtitle">Configure o Supabase para começar</p>
+
+    <div class="form-group">
+      <label>Supabase Project URL</label>
+      <input type="url" id="setup-url" placeholder="https://xxxxxxxxxxxx.supabase.co" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>Supabase Anon Key</label>
+      <input type="password" id="setup-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+    </div>
+    <button class="btn-primary btn-full" id="btn-setup">Salvar e Continuar →</button>
+    <p id="setup-error" class="error-msg hidden"></p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TELA: LOGIN
+══════════════════════════════════════════ -->
+<div id="screen-login" class="screen hidden">
+  <div class="center-box">
+    <div class="logo">📲</div>
+    <h1 class="center-title">Disparos <em>WhatsApp</em></h1>
+    <p class="subtitle">Entre com sua senha</p>
+
+    <div class="form-group">
+      <label>Senha</label>
+      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn-primary btn-full" id="btn-login">Entrar</button>
+    <p id="login-error" class="error-msg hidden"></p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TELA: APP
+══════════════════════════════════════════ -->
+<div id="screen-app" class="screen hidden">
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-brand">
+      <span class="header-icon">📲</span>
+      <span class="header-title">Disparos WhatsApp</span>
+    </div>
+    <button class="btn-ghost" id="btn-logout">Sair</button>
+  </header>
+
+  <!-- Tab Nav -->
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="disparos">Disparos</button>
+    <button class="tab-btn" data-tab="listas">Listas</button>
+    <button class="tab-btn" data-tab="templates">Templates</button>
+    <button class="tab-btn" data-tab="historico">Histórico</button>
+    <button class="tab-btn" data-tab="config">Configurações</button>
+  </nav>
+
+  <main class="app-main">
+
+    <!-- ══════════════════════════════════════
+         TAB: DISPAROS
+    ══════════════════════════════════════ -->
+    <div id="tab-disparos" class="tab-content active">
+      <div class="two-col">
+
+        <!-- COLUNA ESQUERDA -->
+        <div class="left-col">
+
+          <!-- Contatos -->
+          <div class="card">
+            <div class="card-header">
+              <h2>Contatos</h2>
+              <select id="lista-select" class="select-sm">
+                <option value="">Carregar lista salva...</option>
+              </select>
+            </div>
+            <textarea id="contacts-input"
+              placeholder="31975097388, 11976283630, 21971008606&#10;&#10;Separe por vírgula ou quebra de linha.&#10;Inclua DDD (sem o +55). Ex: 31975097388"
+              rows="7"></textarea>
+            <div class="card-footer">
+              <button class="btn-secondary btn-sm" id="btn-load-contacts">Carregar</button>
+              <span id="contacts-count" class="text-dim">0 contatos</span>
+            </div>
+          </div>
+
+          <!-- Mensagem -->
+          <div class="card">
+            <div class="card-header">
+              <h2>Mensagem</h2>
+              <select id="template-select" class="select-sm">
+                <option value="">Carregar template...</option>
+              </select>
+            </div>
+            <div id="steps-list"></div>
+            <button class="btn-ghost btn-full mt-8" id="btn-add-step">+ Adicionar bloco</button>
+            <div class="card-footer mt-8">
+              <button class="btn-secondary btn-sm" id="btn-save-template">Salvar como template</button>
+            </div>
+          </div>
+
+          <!-- Parâmetros -->
+          <div class="card">
+            <h2 class="mb-16">Parâmetros</h2>
+            <div class="params-grid">
+              <div class="form-group">
+                <label>Intervalo entre contatos</label>
+                <select id="param-interval">
+                  <option value="10000">10 segundos</option>
+                  <option value="30000" selected>30 segundos</option>
+                  <option value="60000">1 minuto</option>
+                  <option value="120000">2 minutos</option>
+                  <option value="300000">5 minutos</option>
+                  <option value="custom">Personalizado...</option>
+                </select>
+              </div>
+              <div class="form-group" id="interval-custom-group" style="display:none">
+                <label>Intervalo personalizado (segundos)</label>
+                <input type="number" id="param-interval-custom" min="5" value="30">
+              </div>
+              <div class="form-group">
+                <label>Pausar a cada</label>
+                <select id="param-pause-every">
+                  <option value="0">Nunca pausar</option>
+                  <option value="1">1 mensagem enviada</option>
+                  <option value="2">2 mensagens enviadas</option>
+                  <option value="5">5 mensagens enviadas</option>
+                  <option value="10">10 mensagens enviadas</option>
+                  <option value="20">20 mensagens enviadas</option>
+                  <option value="40">40 mensagens enviadas</option>
+                  <option value="80">80 mensagens enviadas</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Voltar a enviar após</label>
+                <select id="param-resume-after">
+                  <option value="30000">30 segundos</option>
+                  <option value="60000" selected>1 minuto</option>
+                  <option value="300000">5 minutos</option>
+                  <option value="900000">15 minutos</option>
+                  <option value="1500000">25 minutos</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /left-col -->
+
+        <!-- COLUNA DIREITA -->
+        <div class="right-col">
+
+          <!-- Preview WhatsApp -->
+          <div class="card">
+            <h2 class="mb-12">Preview</h2>
+            <div class="wpp-phone">
+              <div class="wpp-topbar">
+                <div class="wpp-avatar">C</div>
+                <div class="wpp-info">
+                  <div class="wpp-name">Contato</div>
+                  <div class="wpp-online">online</div>
+                </div>
+              </div>
+              <div class="wpp-chat" id="wpp-body">
+                <div class="wpp-empty">Adicione blocos para ver o preview</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Controles -->
+          <div class="card">
+            <h2 class="mb-12">Controles</h2>
+            <div class="controls-row">
+              <button class="btn-success" id="btn-start">▶ Iniciar</button>
+              <button class="btn-warning" id="btn-pause" disabled>⏸ Pausar</button>
+              <button class="btn-danger" id="btn-stop" disabled>⏹ Parar</button>
+            </div>
+
+            <div id="progress-section" style="display:none">
+              <div class="progress-wrap">
+                <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+              </div>
+              <div class="progress-meta">
+                <span id="progress-text">0 / 0 enviados</span>
+                <span id="error-count" class="text-red"></span>
+              </div>
+              <div id="campaign-status" class="campaign-status">Aguardando...</div>
+            </div>
+
+            <div id="log-section" style="display:none">
+              <div class="log-header">
+                <span class="log-title">Log</span>
+                <button class="btn-icon" id="btn-clear-log" title="Limpar log">✕</button>
+              </div>
+              <div class="log-area" id="log-area"></div>
+            </div>
+          </div>
+
+        </div><!-- /right-col -->
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         TAB: LISTAS
+    ══════════════════════════════════════ -->
+    <div id="tab-listas" class="tab-content hidden">
+      <div class="two-col-asymm">
+        <div class="card">
+          <h2 class="mb-16">Nova Lista</h2>
+          <div class="form-group">
+            <label>Nome da lista</label>
+            <input type="text" id="lista-nome" placeholder="Ex: Clientes Ativos">
+          </div>
+          <div class="form-group">
+            <label>Números</label>
+            <textarea id="lista-numeros"
+              placeholder="31975097388, 11976283630&#10;21971008606, 21973127821"
+              rows="10"></textarea>
+            <span class="input-hint">Separe por vírgula ou quebra de linha. Inclua DDD sem o +55.</span>
+          </div>
+          <button class="btn-primary" id="btn-save-lista">Salvar Lista</button>
+          <p id="lista-msg" class="success-msg hidden"></p>
+        </div>
+        <div class="card">
+          <h2 class="mb-16">Listas Salvas</h2>
+          <div id="listas-list" class="items-list">
+            <div class="empty-state">Nenhuma lista salva</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         TAB: TEMPLATES
+    ══════════════════════════════════════ -->
+    <div id="tab-templates" class="tab-content hidden">
+      <div class="two-col-asymm">
+        <div class="card">
+          <h2 class="mb-16">Novo Template</h2>
+          <div class="form-group">
+            <label>Nome do template</label>
+            <input type="text" id="template-nome" placeholder="Ex: Promoção Black Friday">
+          </div>
+          <div id="template-steps-list"></div>
+          <button class="btn-ghost btn-full mt-8" id="btn-add-template-step">+ Adicionar bloco</button>
+          <div class="mt-16">
+            <button class="btn-primary" id="btn-save-template-tab">Salvar Template</button>
+          </div>
+          <p id="template-msg" class="success-msg hidden"></p>
+        </div>
+        <div class="card">
+          <h2 class="mb-16">Templates Salvos</h2>
+          <div id="templates-list" class="items-list">
+            <div class="empty-state">Nenhum template salvo</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         TAB: HISTÓRICO
+    ══════════════════════════════════════ -->
+    <div id="tab-historico" class="tab-content hidden">
+      <div class="card">
+        <div class="card-header">
+          <h2>Histórico de Campanhas</h2>
+          <button class="btn-secondary btn-sm" id="btn-refresh-historico">↻ Atualizar</button>
+        </div>
+        <div id="historico-list">
+          <div class="empty-state">Nenhuma campanha registrada</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         TAB: CONFIGURAÇÕES
+    ══════════════════════════════════════ -->
+    <div id="tab-config" class="tab-content hidden">
+      <div class="config-grid">
+
+        <div class="card">
+          <h2 class="mb-4">Supabase</h2>
+          <p class="text-dim mb-16">Credenciais de infraestrutura — salvas localmente no browser</p>
+          <div class="form-group">
+            <label>Project URL</label>
+            <input type="url" id="config-sb-url" placeholder="https://xxxx.supabase.co">
+          </div>
+          <div class="form-group">
+            <label>Anon Key</label>
+            <input type="password" id="config-sb-key" placeholder="eyJ...">
+          </div>
+          <button class="btn-primary" id="btn-save-supabase">Salvar Supabase</button>
+          <p id="config-sb-msg" class="success-msg hidden"></p>
+        </div>
+
+        <div class="card">
+          <h2 class="mb-4">uazapi</h2>
+          <p class="text-dim mb-16">Credenciais da instância WhatsApp</p>
+          <div class="form-group">
+            <label>URL da instância</label>
+            <input type="url" id="config-uazapi-url" placeholder="https://api.uazapi.com">
+          </div>
+          <div class="form-group">
+            <label>Token</label>
+            <input type="password" id="config-uazapi-token" placeholder="seu-token-uazapi">
+          </div>
+          <button class="btn-primary" id="btn-save-uazapi">Salvar uazapi</button>
+          <p id="config-uazapi-msg" class="success-msg hidden"></p>
+        </div>
+
+        <div class="card">
+          <h2 class="mb-4">Acesso ao Sistema</h2>
+          <p class="text-dim mb-16">Alterar senha de acesso</p>
+          <div class="form-group">
+            <label>Nova senha</label>
+            <input type="password" id="config-senha-nova" placeholder="••••••••">
+          </div>
+          <div class="form-group">
+            <label>Confirmar senha</label>
+            <input type="password" id="config-senha-confirmar" placeholder="••••••••">
+          </div>
+          <button class="btn-primary" id="btn-save-senha">Alterar Senha</button>
+          <p id="config-senha-msg" class="success-msg hidden"></p>
+        </div>
+
+      </div>
+      <div class="card mt-16 text-center">
+        <p class="text-dim">Disparos WhatsApp v1.0.0</p>
+      </div>
+    </div>
+
+  </main>
+</div><!-- /screen-app -->
+
+<!-- ══════════════════════════════════════════
+     MODAL: Salvar como Template
+══════════════════════════════════════════ -->
+<div id="modal-template" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3>Salvar como Template</h3>
+    <div class="form-group mt-12">
+      <label>Nome do template</label>
+      <input type="text" id="modal-template-nome" placeholder="Ex: Black Friday">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" id="btn-modal-cancel">Cancelar</button>
+      <button class="btn-primary" id="btn-modal-confirm">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
