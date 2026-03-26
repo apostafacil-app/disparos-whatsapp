@@ -13,15 +13,15 @@ app.use(express.static(__dirname, {
 // Config endpoint — credenciais vêm de variáveis de ambiente do Render
 // Nunca ficam no código ou no browser do usuário
 app.get('/api/config', (req, res) => {
-  const sbUrl       = process.env.SUPABASE_URL;
-  const sbKey       = process.env.SUPABASE_KEY;
-  const adminToken  = process.env.UAZAPI_ADMIN_TOKEN || '';
+  const sbUrl = process.env.SUPABASE_URL;
+  const sbKey = process.env.SUPABASE_KEY;
 
   if (!sbUrl || !sbKey) {
     return res.status(503).json({ error: 'Servidor não configurado. Defina SUPABASE_URL e SUPABASE_KEY nas variáveis de ambiente.' });
   }
 
-  res.json({ sbUrl, sbKey, adminToken });
+  // Admin token NÃO é enviado ao client — fica apenas no servidor
+  res.json({ sbUrl, sbKey });
 });
 
 // Fallback para SPA routing

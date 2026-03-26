@@ -81,6 +81,16 @@ function parseContacts(text) {
     .filter(Boolean);
 }
 
+// ─── Escape HTML (previne XSS) ────────────
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ─── Gerador de ID simples ─────────────────
 let stepCounter = 0;
 function newId() { return `step_${++stepCounter}_${Date.now()}`; }
@@ -439,23 +449,26 @@ function updatePreview() {
 function buildBubble(step, time) {
   let inner = '';
   switch (step.type) {
-    case 'text':
-      inner = `<div>${(step.content || '').replace(/\n/g, '<br>') || '<em style="opacity:.5">Mensagem vazia</em>'}</div>`;
+    case 'text': {
+      const txt = escapeHtml(step.content || '').replace(/\n/g, '<br>');
+      inner = `<div>${txt || '<em style="opacity:.5">Mensagem vazia</em>'}</div>`;
       break;
+    }
     case 'image':
-      inner = step.dataUrl
+      // dataUrl é gerado localmente (FileReader) — validar prefixo antes de usar
+      inner = (step.dataUrl && step.dataUrl.startsWith('data:image/'))
         ? `<img class="wpp-bubble-img" src="${step.dataUrl}" alt="imagem">` +
-          (step.caption ? `<div>${step.caption}</div>` : '')
+          (step.caption ? `<div>${escapeHtml(step.caption)}</div>` : '')
         : `<div style="opacity:.5">🖼️ Imagem selecionada</div>`;
       break;
     case 'audio':
       inner = `<div class="wpp-bubble-audio"><span>🎵</span> Mensagem de voz${step.content ? '' : ' <em style="opacity:.5">(sem URL)</em>'}</div>`;
       break;
     case 'document':
-      inner = `<div class="wpp-bubble-doc"><span class="wpp-bubble-doc-icon">📄</span>${step.filename || 'documento'}</div>`;
+      inner = `<div class="wpp-bubble-doc"><span class="wpp-bubble-doc-icon">📄</span>${escapeHtml(step.filename || 'documento')}</div>`;
       break;
   }
-  return `<div class="wpp-bubble">${inner}<div class="wpp-bubble-time">${time} ✓✓</div></div>`;
+  return `<div class="wpp-bubble">${inner}<div class="wpp-bubble-time">${escapeHtml(time)} ✓✓</div></div>`;
 }
 
 // ══════════════════════════════════════════
@@ -512,12 +525,12 @@ async function loadListas() {
     const count = JSON.parse(l.numeros || '[]').length;
     return `<div class="item-row">
       <div class="item-info">
-        <div class="item-name">${l.nome}</div>
+        <div class="item-name">${escapeHtml(l.nome)}</div>
         <div class="item-meta">${count} contatos · ${formatDate(l.created_at)}</div>
       </div>
       <div class="item-actions">
-        <button class="btn-secondary btn-sm" onclick="carregarListaEmDisparos('${l.id}')">Usar</button>
-        <button class="btn-icon" onclick="deleteLista('${l.id}')">🗑</button>
+        <button class="btn-secondary btn-sm" data-action="usar-lista" data-id="${escapeHtml(l.id)}">Usar</button>
+        <button class="btn-icon" data-action="del-lista" data-id="${escapeHtml(l.id)}">🗑</button>
       </div>
     </div>`;
   }).join('');
@@ -583,12 +596,12 @@ async function loadTemplates() {
     const steps = t.steps || [];
     return `<div class="item-row">
       <div class="item-info">
-        <div class="item-name">${t.nome}</div>
+        <div class="item-name">${escapeHtml(t.nome)}</div>
         <div class="item-meta">${steps.length} bloco(s) · ${formatDate(t.created_at)}</div>
       </div>
       <div class="item-actions">
-        <button class="btn-secondary btn-sm" onclick="carregarTemplateEmDisparos('${t.id}')">Usar</button>
-        <button class="btn-icon" onclick="deleteTemplate('${t.id}')">🗑</button>
+        <button class="btn-secondary btn-sm" data-action="usar-template" data-id="${escapeHtml(t.id)}">Usar</button>
+        <button class="btn-icon" data-action="del-template" data-id="${escapeHtml(t.id)}">🗑</button>
       </div>
     </div>`;
   }).join('');
@@ -638,7 +651,7 @@ async function loadHistorico() {
     <div class="hist-row">
       <div class="hist-icon">${statusIcon[h.status] || '📋'}</div>
       <div class="hist-info">
-        <div class="hist-name">${h.nome || 'Campanha sem nome'}</div>
+        <div class="hist-name">${escapeHtml(h.nome || 'Campanha sem nome')}</div>
         <div class="hist-date">${formatDate(h.created_at)}</div>
       </div>
       <span class="badge ${statusBadge[h.status] || 'badge-purple'}">${statusLabel[h.status] || h.status}</span>
@@ -671,9 +684,8 @@ async function loadConfigFields() {
     $('config-sb-key').value = localStorage.getItem('sb_key') || '';
   }
 
-  // Admin token: server config tem prioridade, fallback para localStorage
-  $('config-uazapi-admintoken').value =
-    window._serverConfig?.adminToken || localStorage.getItem('uazapi_admintoken') || '';
+  // Admin token: lido do localStorage (nunca vem do servidor por segurança)
+  $('config-uazapi-admintoken').value = localStorage.getItem('uazapi_admintoken') || '';
 
   const cfg = await getConfig();
   if (cfg) {
@@ -1283,10 +1295,22 @@ function bindEvents() {
     campaign.log = [];
   });
 
-  // Listas
+  // Listas — event delegation (evita onclick inline vulnerável a XSS)
+  $('listas-list').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    if (btn.dataset.action === 'usar-lista') carregarListaEmDisparos(btn.dataset.id);
+    if (btn.dataset.action === 'del-lista')  deleteLista(btn.dataset.id);
+  });
   $('btn-save-lista').addEventListener('click', saveLista);
 
-  // Templates
+  // Templates — event delegation
+  $('templates-list').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    if (btn.dataset.action === 'usar-template') carregarTemplateEmDisparos(btn.dataset.id);
+    if (btn.dataset.action === 'del-template')  deleteTemplate(btn.dataset.id);
+  });
   $('btn-add-template-step').addEventListener('click', () => addStep('template-steps-list'));
   $('btn-save-template-tab').addEventListener('click', async () => {
     const nome = $('template-nome').value.trim();
