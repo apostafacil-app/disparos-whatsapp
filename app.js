@@ -757,6 +757,13 @@ async function checkWppStatus() {
     });
     const data = await res.json().catch(() => ({}));
 
+    if (data.code === 401 || res.status === 401) {
+      dot.className = 'status-dot disconnected';
+      txt.textContent = '🔑 Token inválido — verifique em Configurações';
+      btnR.style.display = 'none';
+      return;
+    }
+
     const connected = data.connected === true
       || data.state === 'CONNECTED'
       || data.status === 'CONNECTED'
@@ -856,13 +863,23 @@ async function loadQrCode() {
     }
 
     const data = await res.json().catch(() => ({}));
-    const src = extractQrSrc(data);
 
+    // Token inválido
+    if (data.code === 401 || res.status === 401) {
+      qrImg.style.display = 'none';
+      const errEl = document.createElement('p');
+      errEl.className = 'error-msg';
+      errEl.style.marginTop = '8px';
+      errEl.textContent = '🔑 Token inválido. Verifique o token em Configurações → uazapi.';
+      qrSec.querySelector('.qr-container').replaceWith(errEl);
+      return;
+    }
+
+    const src = extractQrSrc(data);
     if (src) {
       qrImg.src = src.startsWith('data:') ? src : `data:image/png;base64,${src}`;
       qrImg.alt = 'QR Code';
     } else {
-      // Mostra resposta completa para identificar o campo correto
       qrImg.style.display = 'none';
       const pre = document.createElement('pre');
       pre.style.cssText = 'font-size:10px;color:#a78bfa;word-break:break-all;white-space:pre-wrap;max-height:200px;overflow:auto;margin-top:8px;background:#0f172a;padding:8px;border-radius:6px';
