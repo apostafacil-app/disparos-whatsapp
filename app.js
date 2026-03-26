@@ -191,7 +191,7 @@ function initTabs() {
 const stepsData = {}; // id → { type, content, caption, filename, dataUrl }
 
 function createStepEl(containerId, id, defaultType = 'text') {
-  stepsData[id] = { id, type: defaultType, content: '', caption: '', filename: '', dataUrl: '' };
+  stepsData[id] = { id, type: defaultType, content: '', caption: '', filename: '', dataUrl: '', delay: 0 };
 
   const el = document.createElement('div');
   el.className = 'step-item';
@@ -222,6 +222,11 @@ function buildStepHTML(id, type) {
     </div>
     <div class="step-body">
       ${buildStepBody(type, id)}
+    </div>
+    <div class="step-delay-row">
+      <span class="step-delay-label">⏱ Aguardar</span>
+      <input type="number" class="step-delay-input" min="0" max="600" value="${stepsData[id]?.delay || 0}" placeholder="0">
+      <span class="step-delay-unit">seg antes do próximo</span>
     </div>`;
 }
 
@@ -304,6 +309,15 @@ function bindStepBodyEvents(el, id) {
   if (caption) {
     caption.addEventListener('input', e => {
       data.caption = e.target.value;
+      updatePreview();
+    });
+  }
+
+  // Delay entre blocos
+  const delayInput = el.querySelector('.step-delay-input');
+  if (delayInput) {
+    delayInput.addEventListener('input', e => {
+      data.delay = parseInt(e.target.value) || 0;
       updatePreview();
     });
   }
@@ -398,7 +412,13 @@ function updatePreview() {
   }
 
   const now = formatTime();
-  body.innerHTML = steps.map(s => buildBubble(s, now)).join('');
+  body.innerHTML = steps.map((s, i) => {
+    const bubble = buildBubble(s, now);
+    const delayBubble = (s.delay > 0 && i < steps.length - 1)
+      ? `<div class="wpp-delay-bubble">✍️ Digitando... ${s.delay}s</div>`
+      : '';
+    return bubble + delayBubble;
+  }).join('');
   body.scrollTop = body.scrollHeight;
 }
 
@@ -1048,7 +1068,7 @@ async function startCampaign() {
         try {
           await sendStep(contact, step);
           addLogLine('ok', `✓ ${contact} [${step.type}]`);
-          await sleep(800); // pequeno delay entre blocos do mesmo contato
+          await sleep(Math.max(500, (step.delay || 0) * 1000));
         } catch (e) {
           addLogLine('err', `✗ ${contact} [${step.type}]: ${e.message}`);
           campaign.errorCount++;
