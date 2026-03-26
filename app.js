@@ -781,11 +781,46 @@ async function checkWppStatus() {
   }
 }
 
+async function reconnectWpp() {
+  const dot = $('wpp-status-dot');
+  const txt = $('wpp-status-text');
+  const btn = $('btn-reconnect');
+
+  dot.className = 'status-dot loading';
+  txt.textContent = 'Reconectando...';
+  btn.disabled = true;
+
+  try {
+    const { baseUrl, token } = await getUazapiCreds();
+    // Tenta /reconnect primeiro, fallback para /restart
+    const res = await fetch(`${baseUrl}/reconnect`, {
+      method: 'POST',
+      headers: { token, 'Content-Type': 'application/json' }
+    });
+    if (!res.ok) {
+      await fetch(`${baseUrl}/restart`, {
+        method: 'POST',
+        headers: { token, 'Content-Type': 'application/json' }
+      });
+    }
+    txt.textContent = 'Aguardando conexão...';
+    // Aguarda 3s e verifica o status novamente
+    await sleep(3000);
+    btn.disabled = false;
+    await checkWppStatus();
+  } catch (e) {
+    dot.className = 'status-dot disconnected';
+    txt.textContent = `Erro ao reconectar: ${e.message}`;
+    btn.disabled = false;
+  }
+}
+
 async function loadQrCode() {
   const qrSec = $('qr-section');
   const qrImg = $('qr-img');
   qrSec.classList.remove('hidden');
   qrImg.src = '';
+  qrImg.alt = 'Carregando QR Code...';
 
   try {
     const { baseUrl, token } = await getUazapiCreds();
@@ -799,12 +834,13 @@ async function loadQrCode() {
     const src = data.qrcode || data.base64 || data.qr || '';
     if (src) {
       qrImg.src = src.startsWith('data:') ? src : `data:image/png;base64,${src}`;
+      qrImg.alt = 'QR Code';
     } else {
-      qrImg.src = '';
-      $('qr-section').innerHTML = '<p class="text-dim">QR Code indisponível — tente reconectar.</p>';
+      qrImg.alt = 'QR Code indisponível';
+      qrSec.querySelector('p') && (qrSec.querySelector('p').textContent = 'QR Code indisponível — clique em Reconectar.');
     }
   } catch (e) {
-    qrSec.querySelector && (qrSec.innerHTML = `<p class="text-dim">Erro ao buscar QR: ${e.message}</p>`);
+    qrImg.alt = `Erro: ${e.message}`;
   }
 }
 
@@ -1140,7 +1176,7 @@ function bindEvents() {
   // Configurações — uazapi
   $('btn-save-uazapi').addEventListener('click', saveUazapi);
   $('btn-check-status').addEventListener('click', checkWppStatus);
-  $('btn-reconnect').addEventListener('click', loadQrCode);
+  $('btn-reconnect').addEventListener('click', reconnectWpp);
   $('btn-refresh-qr').addEventListener('click', loadQrCode);
 
   // Configurações — Senha
