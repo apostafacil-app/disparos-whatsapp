@@ -630,6 +630,7 @@ async function loadHistorico() {
 async function loadConfigFields() {
   $('config-sb-url').value = localStorage.getItem('sb_url') || '';
   $('config-sb-key').value = localStorage.getItem('sb_key') || '';
+  $('config-uazapi-admintoken').value = localStorage.getItem('uazapi_admintoken') || '';
 
   const cfg = await getConfig();
   if (cfg) {
@@ -639,14 +640,16 @@ async function loadConfigFields() {
 }
 
 async function createInstance() {
-  const url       = $('config-uazapi-url').value.trim().replace(/\/$/, '');
+  const url        = $('config-uazapi-url').value.trim().replace(/\/$/, '');
   const adminToken = $('config-uazapi-admintoken').value.trim();
-  const name      = $('config-uazapi-instname').value.trim();
+  const name       = $('config-uazapi-instname').value.trim();
 
-  if (!url || !adminToken || !name) {
-    flashMsg('config-uazapi-msg', 'Preencha URL, Admin Token e nome da instância.', true);
-    return;
-  }
+  if (!url)        { flashMsg('config-uazapi-msg', 'Preencha a URL do servidor.', true); return; }
+  if (!adminToken) { flashMsg('config-uazapi-msg', 'Preencha o Admin Token.', true); return; }
+  if (!name)       { flashMsg('config-uazapi-msg', 'Preencha o nome da instância.', true); return; }
+
+  // Salva admin token localmente para não precisar digitar sempre
+  localStorage.setItem('uazapi_admintoken', adminToken);
 
   const btn = $('btn-create-instance');
   btn.disabled = true;
