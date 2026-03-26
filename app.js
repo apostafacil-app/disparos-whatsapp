@@ -874,21 +874,43 @@ async function checkWppStatus() {
       || data.instance?.status === 'connected'
       || data.connected === true;
 
+    const btnD = $('btn-disconnect');
     if (connected) {
       dot.className = 'status-dot connected';
       txt.textContent = '✓ WhatsApp conectado';
       btnR.style.display = 'none';
+      if (btnD) btnD.style.display = '';
       qrSec.classList.add('hidden');
     } else {
       dot.className = 'status-dot disconnected';
       txt.textContent = '✗ Desconectado';
       btnR.style.display = '';
+      if (btnD) btnD.style.display = 'none';
       await loadQrCode();
     }
   } catch (e) {
     dot.className = 'status-dot disconnected';
     txt.textContent = `Erro: ${e.message}`;
     btnR.style.display = '';
+  }
+}
+
+async function disconnectWpp() {
+  const dot = $('wpp-status-dot');
+  const txt = $('wpp-status-text');
+  if (!confirm('Desconectar o WhatsApp desta instância?')) return;
+  dot.className = 'status-dot loading';
+  txt.textContent = 'Desconectando...';
+  try {
+    const { baseUrl, token } = await getUazapiCreds();
+    await fetch(`${baseUrl}/instance/disconnect`, {
+      method: 'POST',
+      headers: { token, 'Content-Type': 'application/json' }
+    });
+    await sleep(1500);
+    await checkWppStatus();
+  } catch (e) {
+    txt.textContent = `Erro: ${e.message}`;
   }
 }
 
@@ -941,61 +963,84 @@ async function loadQrCode() {
   const qrSec = $('qr-section');
   qrSec.innerHTML = `
     <p class="text-dim mb-8">Escaneie o QR Code com o WhatsApp:</p>
-    <div class="qr-container"><img id="qr-img" src="" alt="Carregando..." class="qr-img"></div>
+    <div class="qr-container"><img id="qr-img" src="" alt="Aguardando QR..." class="qr-img"></div>
+    <p id="qr-status-msg" class="text-dim" style="font-size:12px;margin-top:6px">Gerando QR Code...</p>
     <button class="btn-ghost btn-sm mt-8" id="btn-refresh-qr">↻ Atualizar QR</button>`;
   $('btn-refresh-qr').addEventListener('click', loadQrCode);
   qrSec.classList.remove('hidden');
-  const qrImg = $('qr-img');
+
+  function showQrError(msg) {
+    const qrImg = $('qr-img');
+    if (qrImg) qrImg.style.display = 'none';
+    const statusMsg = $('qr-status-msg');
+    if (statusMsg) { statusMsg.className = 'error-msg'; statusMsg.textContent = msg; }
+  }
+
+  function showQrImage(src) {
+    const qrImg = $('qr-img');
+    if (!qrImg) return;
+    qrImg.src = src.startsWith('data:') ? src : `data:image/png;base64,${src}`;
+    qrImg.alt = 'QR Code';
+    qrImg.style.display = '';
+    const statusMsg = $('qr-status-msg');
+    if (statusMsg) statusMsg.textContent = 'Escaneie com o WhatsApp → câmera → código QR';
+  }
 
   try {
     const { baseUrl, token } = await getUazapiCreds();
 
-    // Docs uazapi: POST /instance/connect sem body gera QR Code
+    // 1. Iniciar conexão
     const res = await fetch(`${baseUrl}/instance/connect`, {
       method: 'POST',
       headers: { token, 'Content-Type': 'application/json' },
       body: JSON.stringify({})
     });
 
-    // Resposta é imagem direta
+    if (res.status === 401) { showQrError('🔑 Token inválido — verifique em Configurações.'); return; }
+
+    // Resposta pode ser imagem direta
     const ct = res.headers.get('content-type') || '';
     if (ct.includes('image/')) {
       const blob = await res.blob();
-      qrImg.src = URL.createObjectURL(blob);
-      qrImg.alt = 'QR Code';
+      showQrImage(URL.createObjectURL(blob));
       return;
     }
 
-    const data = await res.json().catch(() => ({}));
+    const connectData = await res.json().catch(() => ({}));
+    if (connectData.code === 401) { showQrError('🔑 Token inválido — verifique em Configurações.'); return; }
 
-    // Token inválido
-    if (data.code === 401 || res.status === 401) {
-      qrImg.style.display = 'none';
-      const errEl = document.createElement('p');
-      errEl.className = 'error-msg';
-      errEl.style.marginTop = '8px';
-      errEl.textContent = '🔑 Token inválido. Verifique o token em Configurações → uazapi.';
-      qrSec.querySelector('.qr-container').replaceWith(errEl);
-      return;
+    // Tenta extrair QR do response do connect
+    const srcDirect = extractQrSrc(connectData);
+    if (srcDirect) { showQrImage(srcDirect); return; }
+
+    // 2. QR não veio no connect — faz polling do /instance/status (até 30s)
+    const statusMsg = $('qr-status-msg');
+    for (let i = 0; i < 10; i++) {
+      if (statusMsg) statusMsg.textContent = `Aguardando QR Code... (${(i + 1) * 3}s)`;
+      await sleep(3000);
+
+      // Verifica se o qr-section ainda existe (usuário pode ter fechado)
+      if (!$('qr-section') || !$('qr-img')) return;
+
+      const sRes = await fetch(`${baseUrl}/instance/status`, {
+        method: 'GET',
+        headers: { token }
+      });
+      const sData = await sRes.json().catch(() => ({}));
+
+      // Se conectou enquanto aguardava
+      if (sData.status?.connected || sData.instance?.status === 'connected') {
+        await checkWppStatus();
+        return;
+      }
+
+      const src = extractQrSrc(sData);
+      if (src) { showQrImage(src); return; }
     }
 
-    const src = extractQrSrc(data);
-    if (src) {
-      qrImg.src = src.startsWith('data:') ? src : `data:image/png;base64,${src}`;
-      qrImg.alt = 'QR Code';
-    } else {
-      qrImg.style.display = 'none';
-      const pre = document.createElement('pre');
-      pre.style.cssText = 'font-size:10px;color:#a78bfa;word-break:break-all;white-space:pre-wrap;max-height:200px;overflow:auto;margin-top:8px;background:#0f172a;padding:8px;border-radius:6px';
-      pre.textContent = JSON.stringify(data, null, 2);
-      qrSec.querySelector('.qr-container').replaceWith(pre);
-    }
+    showQrError('QR Code não gerado. Clique em "↻ Atualizar QR" para tentar novamente.');
   } catch (e) {
-    qrImg.style.display = 'none';
-    const errEl = document.createElement('p');
-    errEl.className = 'text-dim';
-    errEl.textContent = `Erro: ${e.message}`;
-    qrSec.appendChild(errEl);
+    showQrError(`Erro: ${e.message}`);
   }
 }
 
@@ -1345,6 +1390,7 @@ function bindEvents() {
   $('btn-save-uazapi').addEventListener('click', saveUazapi);
   $('btn-check-status').addEventListener('click', checkWppStatus);
   $('btn-reconnect').addEventListener('click', reconnectWpp);
+  $('btn-disconnect').addEventListener('click', disconnectWpp);
   $('btn-refresh-qr').addEventListener('click', loadQrCode);
 
   // Configurações — Senha
