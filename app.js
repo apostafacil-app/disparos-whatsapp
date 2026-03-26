@@ -820,7 +820,8 @@ async function loadQrCode() {
   const qrImg = $('qr-img');
   qrSec.classList.remove('hidden');
   qrImg.src = '';
-  qrImg.alt = 'Carregando QR Code...';
+  qrImg.style.display = 'block';
+  qrImg.alt = 'Carregando...';
 
   try {
     const { baseUrl, token } = await getUazapiCreds();
@@ -828,19 +829,43 @@ async function loadQrCode() {
       method: 'GET',
       headers: { token }
     });
+
+    const contentType = res.headers.get('content-type') || '';
+
+    // Resposta é uma imagem direta
+    if (contentType.includes('image/')) {
+      const blob = await res.blob();
+      qrImg.src = URL.createObjectURL(blob);
+      qrImg.alt = 'QR Code';
+      return;
+    }
+
     const data = await res.json().catch(() => ({}));
 
-    // uazapi pode retornar { qrcode: "data:image/png;base64,..." } ou { base64: "..." }
-    const src = data.qrcode || data.base64 || data.qr || '';
+    // Tenta todos os campos possíveis da uazapi
+    const src = data.qrcode || data.qr || data.base64 || data.imgBase64
+      || data.qrCode || data.image || data.img
+      || (data.data && (data.data.qrcode || data.data.qr || data.data.base64))
+      || '';
+
     if (src) {
       qrImg.src = src.startsWith('data:') ? src : `data:image/png;base64,${src}`;
       qrImg.alt = 'QR Code';
     } else {
-      qrImg.alt = 'QR Code indisponível';
-      qrSec.querySelector('p') && (qrSec.querySelector('p').textContent = 'QR Code indisponível — clique em Reconectar.');
+      // Mostra resposta bruta para debug
+      qrImg.style.display = 'none';
+      const debugEl = document.createElement('pre');
+      debugEl.style.cssText = 'font-size:10px;color:#8892a8;word-break:break-all;white-space:pre-wrap;max-height:120px;overflow:auto';
+      debugEl.textContent = 'Resposta da API:\n' + JSON.stringify(data, null, 2);
+      qrSec.appendChild(debugEl);
     }
   } catch (e) {
-    qrImg.alt = `Erro: ${e.message}`;
+    qrImg.alt = '';
+    qrImg.style.display = 'none';
+    const errEl = document.createElement('p');
+    errEl.className = 'text-dim';
+    errEl.textContent = `Erro: ${e.message}`;
+    qrSec.appendChild(errEl);
   }
 }
 
