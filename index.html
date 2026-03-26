@@ -319,7 +319,27 @@
             <label>Token</label>
             <input type="password" id="config-uazapi-token" placeholder="seu-token-uazapi">
           </div>
-          <button class="btn-primary" id="btn-save-uazapi">Salvar uazapi</button>
+          <div class="uazapi-actions">
+            <button class="btn-primary" id="btn-save-uazapi">Salvar uazapi</button>
+            <button class="btn-secondary" id="btn-check-status">📶 Verificar Conexão</button>
+          </div>
+
+          <!-- Status da conexão -->
+          <div id="wpp-status-box" class="wpp-status-box hidden">
+            <div id="wpp-status-indicator" class="wpp-status-row">
+              <span id="wpp-status-dot" class="status-dot"></span>
+              <span id="wpp-status-text">Verificando...</span>
+              <button class="btn-secondary btn-sm" id="btn-reconnect" style="display:none">🔄 Reconectar</button>
+            </div>
+            <!-- QR Code para reconexão -->
+            <div id="qr-section" class="qr-section hidden">
+              <p class="text-dim mb-8">Escaneie o QR Code com o WhatsApp:</p>
+              <div id="qr-container" class="qr-container">
+                <img id="qr-img" src="" alt="QR Code" class="qr-img">
+              </div>
+              <button class="btn-ghost btn-sm mt-8" id="btn-refresh-qr">↻ Atualizar QR</button>
+            </div>
+          </div>
           <p id="config-uazapi-msg" class="success-msg hidden"></p>
         </div>
 

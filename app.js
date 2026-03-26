@@ -732,6 +732,83 @@ async function sendStep(number, step) {
 }
 
 // ══════════════════════════════════════════
+// UAZAPI — STATUS & QR CODE
+// ══════════════════════════════════════════
+
+async function checkWppStatus() {
+  const box = $('wpp-status-box');
+  const dot  = $('wpp-status-dot');
+  const txt  = $('wpp-status-text');
+  const btnR = $('btn-reconnect');
+  const qrSec = $('qr-section');
+
+  box.classList.remove('hidden');
+  dot.className = 'status-dot loading';
+  txt.textContent = 'Verificando...';
+  btnR.style.display = 'none';
+  qrSec.classList.add('hidden');
+
+  try {
+    const { baseUrl, token } = await getUazapiCreds();
+    const res = await fetch(`${baseUrl}/status`, {
+      method: 'GET',
+      headers: { token }
+    });
+    const data = await res.json().catch(() => ({}));
+
+    // uazapi retorna { connected: true } ou { state: "CONNECTED" } dependendo da versão
+    const connected = data.connected === true
+      || data.state === 'CONNECTED'
+      || data.status === 'CONNECTED'
+      || data.status === 'open'
+      || String(data.state || data.status || '').toUpperCase().includes('CONNECT');
+
+    if (connected) {
+      dot.className = 'status-dot connected';
+      txt.textContent = '✓ WhatsApp conectado';
+      btnR.style.display = 'none';
+      qrSec.classList.add('hidden');
+    } else {
+      dot.className = 'status-dot disconnected';
+      txt.textContent = '✗ Desconectado';
+      btnR.style.display = '';
+      await loadQrCode();
+    }
+  } catch (e) {
+    dot.className = 'status-dot disconnected';
+    txt.textContent = `Erro: ${e.message}`;
+    btnR.style.display = '';
+  }
+}
+
+async function loadQrCode() {
+  const qrSec = $('qr-section');
+  const qrImg = $('qr-img');
+  qrSec.classList.remove('hidden');
+  qrImg.src = '';
+
+  try {
+    const { baseUrl, token } = await getUazapiCreds();
+    const res = await fetch(`${baseUrl}/qrcode`, {
+      method: 'GET',
+      headers: { token }
+    });
+    const data = await res.json().catch(() => ({}));
+
+    // uazapi pode retornar { qrcode: "data:image/png;base64,..." } ou { base64: "..." }
+    const src = data.qrcode || data.base64 || data.qr || '';
+    if (src) {
+      qrImg.src = src.startsWith('data:') ? src : `data:image/png;base64,${src}`;
+    } else {
+      qrImg.src = '';
+      $('qr-section').innerHTML = '<p class="text-dim">QR Code indisponível — tente reconectar.</p>';
+    }
+  } catch (e) {
+    qrSec.querySelector && (qrSec.innerHTML = `<p class="text-dim">Erro ao buscar QR: ${e.message}</p>`);
+  }
+}
+
+// ══════════════════════════════════════════
 // CAMPAIGN ENGINE
 // ══════════════════════════════════════════
 
@@ -1062,6 +1139,9 @@ function bindEvents() {
 
   // Configurações — uazapi
   $('btn-save-uazapi').addEventListener('click', saveUazapi);
+  $('btn-check-status').addEventListener('click', checkWppStatus);
+  $('btn-reconnect').addEventListener('click', loadQrCode);
+  $('btn-refresh-qr').addEventListener('click', loadQrCode);
 
   // Configurações — Senha
   $('btn-save-senha').addEventListener('click', saveSenha);

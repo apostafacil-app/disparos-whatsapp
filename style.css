@@ -700,6 +700,64 @@ button:disabled { opacity: .4; cursor: not-allowed; transform: none; }
 }
 
 /* ══════════════════════════════════════════
+   UAZAPI STATUS
+══════════════════════════════════════════ */
+.uazapi-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 0;
+}
+
+.wpp-status-box {
+  margin-top: 16px;
+  padding: 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.wpp-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+  transition: background .3s;
+}
+
+.status-dot.connected    { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-dot.disconnected { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+.status-dot.loading      { background: var(--yellow); animation: pulse 1s infinite; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .3; }
+}
+
+.qr-section { margin-top: 14px; }
+
+.qr-container {
+  display: inline-block;
+  padding: 10px;
+  background: #fff;
+  border-radius: 8px;
+}
+
+.qr-img {
+  display: block;
+  width: 200px;
+  height: 200px;
+  image-rendering: pixelated;
+}
+
+/* ══════════════════════════════════════════
    HISTÓRICO
 ══════════════════════════════════════════ */
 .hist-row {
