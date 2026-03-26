@@ -72,12 +72,22 @@ function normalizePhone(raw) {
   return digits.length >= 10 ? '55' + digits.slice(-11) : null;
 }
 
+// Retorna [{ number, name }]. Formato por linha: "31975097388, João Silva" ou só "31975097388"
 function parseContacts(text) {
   return text
-    .split(/[\n,]+/)
+    .split('\n')
     .map(s => s.trim())
     .filter(Boolean)
-    .map(normalizePhone)
+    .map(line => {
+      const commaIdx = line.indexOf(',');
+      if (commaIdx !== -1) {
+        const number = normalizePhone(line.slice(0, commaIdx).trim());
+        const name   = line.slice(commaIdx + 1).trim();
+        return number ? { number, name } : null;
+      }
+      const number = normalizePhone(line.trim());
+      return number ? { number, name: '' } : null;
+    })
     .filter(Boolean);
 }
 
@@ -450,7 +460,9 @@ function buildBubble(step, time) {
   let inner = '';
   switch (step.type) {
     case 'text': {
-      const txt = escapeHtml(step.content || '').replace(/\n/g, '<br>');
+      const txt = escapeHtml(step.content || '')
+        .replace(/\n/g, '<br>')
+        .replace(/\{\{nome\}\}/gi, '<span style="background:#fef08a;color:#713f12;border-radius:3px;padding:0 3px;font-size:11px">{{nome}}</span>');
       inner = `<div>${txt || '<em style="opacity:.5">Mensagem vazia</em>'}</div>`;
       break;
     }
@@ -480,7 +492,11 @@ let loadedContacts = [];
 function loadContacts() {
   const text = $('contacts-input').value;
   loadedContacts = parseContacts(text);
-  $('contacts-count').textContent = `${loadedContacts.length} contato${loadedContacts.length !== 1 ? 's' : ''}`;
+  const comNome = loadedContacts.filter(c => c.name).length;
+  const label = comNome > 0
+    ? `${loadedContacts.length} contato${loadedContacts.length !== 1 ? 's' : ''} (${comNome} com nome)`
+    : `${loadedContacts.length} contato${loadedContacts.length !== 1 ? 's' : ''}`;
+  $('contacts-count').textContent = label;
 }
 
 // ══════════════════════════════════════════
@@ -781,7 +797,11 @@ async function getUazapiCreds() {
   return { baseUrl: cfg.instance_url.replace(/\/$/, ''), token: cfg.api_token };
 }
 
-async function sendStep(number, step) {
+function applyPlaceholders(text, name) {
+  return (text || '').replace(/\{\{nome\}\}/gi, name || 'Cliente');
+}
+
+async function sendStep(number, step, contactName = '') {
   const { baseUrl, token } = await getUazapiCreds();
   const headers = { 'Content-Type': 'application/json', 'token': token };
 
@@ -790,7 +810,7 @@ async function sendStep(number, step) {
   switch (step.type) {
     case 'text':
       endpoint = `${baseUrl}/send/text`;
-      body = { number, text: step.content };
+      body = { number, text: applyPlaceholders(step.content, contactName) };
       break;
 
     case 'image':
@@ -799,7 +819,7 @@ async function sendStep(number, step) {
         number,
         type: 'image',
         file: step.dataUrl || step.content,
-        text: step.caption || ''
+        text: applyPlaceholders(step.caption, contactName)
       };
       break;
 
@@ -1142,17 +1162,18 @@ async function startCampaign() {
       if (campaign.stopped) break;
 
       const contact = contacts[i];
-      setStatus(`Enviando para ${contact}... (${i + 1}/${contacts.length})`);
+      const label = contact.name ? `${contact.name} (${contact.number})` : contact.number;
+      setStatus(`Enviando para ${label}... (${i + 1}/${contacts.length})`);
 
       let contactOk = true;
       for (const step of steps) {
         if (campaign.stopped) break;
         try {
-          await sendStep(contact, step);
-          addLogLine('ok', `✓ ${contact} [${step.type}]`);
+          await sendStep(contact.number, step, contact.name);
+          addLogLine('ok', `✓ ${label} [${step.type}]`);
           await sleep(Math.max(500, (step.delay || 0) * 1000));
         } catch (e) {
-          addLogLine('err', `✗ ${contact} [${step.type}]: ${e.message}`);
+          addLogLine('err', `✗ ${label} [${step.type}]: ${e.message}`);
           campaign.errorCount++;
           contactOk = false;
         }
