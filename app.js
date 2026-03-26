@@ -691,8 +691,10 @@ async function createInstance() {
   if (!adminToken) { flashMsg('config-uazapi-msg', 'Preencha o Admin Token.', true); return; }
   if (!name)       { flashMsg('config-uazapi-msg', 'Preencha o nome da instância.', true); return; }
 
-  // Salva admin token localmente para não precisar digitar sempre
-  localStorage.setItem('uazapi_admintoken', adminToken);
+  // Salva admin token no localStorage só se não vier do servidor (Render)
+  if (!window._serverConfig?.adminToken) {
+    localStorage.setItem('uazapi_admintoken', adminToken);
+  }
 
   const btn = $('btn-create-instance');
   btn.disabled = true;
