@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: disparos-whatsapp
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: UAZAPI_ADMIN_TOKEN
+        sync: false

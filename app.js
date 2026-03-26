@@ -133,9 +133,23 @@ function logout() {
 // TELAS / NAVEGAÇÃO
 // ══════════════════════════════════════════
 
+// Config vinda do servidor Render (variáveis de ambiente)
+window._serverConfig = null;
+
+async function fetchServerConfig() {
+  try {
+    const res = await fetch('/api/config');
+    if (res.ok) window._serverConfig = await res.json();
+  } catch {
+    // Sem servidor (GitHub Pages / local) — usa localStorage como fallback
+  }
+}
+
 async function resolveInitialScreen() {
-  const sbUrl = localStorage.getItem('sb_url');
-  const sbKey = localStorage.getItem('sb_key');
+  await fetchServerConfig();
+
+  const sbUrl = window._serverConfig?.sbUrl || localStorage.getItem('sb_url');
+  const sbKey = window._serverConfig?.sbKey || localStorage.getItem('sb_key');
 
   if (!sbUrl || !sbKey) {
     showScreen('screen-setup');
@@ -648,9 +662,18 @@ async function loadHistorico() {
 // ══════════════════════════════════════════
 
 async function loadConfigFields() {
-  $('config-sb-url').value = localStorage.getItem('sb_url') || '';
-  $('config-sb-key').value = localStorage.getItem('sb_key') || '';
-  $('config-uazapi-admintoken').value = localStorage.getItem('uazapi_admintoken') || '';
+  // Se config vem do servidor, esconde a seção Supabase (não precisa configurar)
+  const sbCard = document.querySelector('#tab-config .config-grid .card:first-child');
+  if (window._serverConfig?.sbUrl) {
+    if (sbCard) sbCard.style.display = 'none';
+  } else {
+    $('config-sb-url').value = localStorage.getItem('sb_url') || '';
+    $('config-sb-key').value = localStorage.getItem('sb_key') || '';
+  }
+
+  // Admin token: server config tem prioridade, fallback para localStorage
+  $('config-uazapi-admintoken').value =
+    window._serverConfig?.adminToken || localStorage.getItem('uazapi_admintoken') || '';
 
   const cfg = await getConfig();
   if (cfg) {
