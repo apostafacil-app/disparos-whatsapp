@@ -638,10 +638,53 @@ async function loadConfigFields() {
   }
 }
 
+async function createInstance() {
+  const url       = $('config-uazapi-url').value.trim().replace(/\/$/, '');
+  const adminToken = $('config-uazapi-admintoken').value.trim();
+  const name      = $('config-uazapi-instname').value.trim();
+
+  if (!url || !adminToken || !name) {
+    flashMsg('config-uazapi-msg', 'Preencha URL, Admin Token e nome da instância.', true);
+    return;
+  }
+
+  const btn = $('btn-create-instance');
+  btn.disabled = true;
+  btn.textContent = 'Criando...';
+
+  try {
+    const res = await fetch(`${url}/instance/init`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'admintoken': adminToken },
+      body: JSON.stringify({ name })
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      flashMsg('config-uazapi-msg', `Erro ${res.status}: ${data.error || data.message || 'falha ao criar instância'}`, true);
+      return;
+    }
+
+    // Token retornado pode estar em data.token ou data.instance.token
+    const token = data.token || data.instance?.token;
+    if (token) {
+      $('config-uazapi-token').value = token;
+      flashMsg('config-uazapi-msg', `Instância "${name}" criada! Token preenchido automaticamente. Clique em Salvar uazapi.`);
+    } else {
+      flashMsg('config-uazapi-msg', 'Instância criada, mas token não encontrado na resposta. Verifique o painel.', true);
+    }
+  } catch (e) {
+    flashMsg('config-uazapi-msg', `Erro de rede: ${e.message}`, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '+ Criar Instância';
+  }
+}
+
 async function saveUazapi() {
   const url   = $('config-uazapi-url').value.trim().replace(/\/$/, '');
   const token = $('config-uazapi-token').value.trim();
-  if (!url || !token) { flashMsg('config-uazapi-msg', 'Preencha URL e token.', true); return; }
+  if (!url || !token) { flashMsg('config-uazapi-msg', 'Preencha URL e token da instância.', true); return; }
 
   const { error } = await sb.from('disparos_config').upsert({
     id: (await getConfig())?.id,
@@ -1226,6 +1269,7 @@ function bindEvents() {
   });
 
   // Configurações — uazapi
+  $('btn-create-instance').addEventListener('click', createInstance);
   $('btn-save-uazapi').addEventListener('click', saveUazapi);
   $('btn-check-status').addEventListener('click', checkWppStatus);
   $('btn-reconnect').addEventListener('click', reconnectWpp);

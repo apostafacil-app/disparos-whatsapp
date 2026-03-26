@@ -313,11 +313,24 @@
           <p class="text-dim mb-16">Credenciais da instância WhatsApp</p>
           <div class="form-group">
             <label>URL da instância</label>
-            <input type="url" id="config-uazapi-url" placeholder="https://api.uazapi.com">
+            <input type="url" id="config-uazapi-url" placeholder="https://whatsnotificacao.uazapi.com">
           </div>
           <div class="form-group">
-            <label>Token</label>
-            <input type="password" id="config-uazapi-token" placeholder="seu-token-uazapi">
+            <label>Admin Token <span class="text-dim" style="font-weight:400">(para criar instâncias)</span></label>
+            <input type="password" id="config-uazapi-admintoken" placeholder="admin token do servidor">
+          </div>
+          <div class="form-group">
+            <div style="display:flex;gap:8px;align-items:flex-end">
+              <div style="flex:1">
+                <label>Nome da instância</label>
+                <input type="text" id="config-uazapi-instname" placeholder="ex: disparos-jonas">
+              </div>
+              <button class="btn-secondary" id="btn-create-instance" style="white-space:nowrap;margin-bottom:0">+ Criar Instância</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Token da instância</label>
+            <input type="password" id="config-uazapi-token" placeholder="token gerado pela instância">
           </div>
           <div class="uazapi-actions">
             <button class="btn-primary" id="btn-save-uazapi">Salvar uazapi</button>
