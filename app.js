@@ -815,16 +815,8 @@ async function reconnectWpp() {
   }
 }
 
-// Candidatos de endpoint para QR code (por ordem de tentativa)
-const QR_ENDPOINTS = [
-  { path: '/instance/connect', method: 'POST' },
-  { path: '/instance/qrcode',  method: 'GET'  },
-  { path: '/qrcode',           method: 'GET'  },
-  { path: '/connect',          method: 'POST' },
-];
-
 function extractQrSrc(data) {
-  // Busca recursivamente em qualquer campo que contenha base64 ou URL de imagem
+  // Busca em qualquer campo que possa ser base64 ou URL de imagem
   const candidates = [
     data.qrcode, data.qr, data.base64, data.imgBase64,
     data.qrCode, data.image, data.img, data.urlCode,
@@ -836,53 +828,47 @@ function extractQrSrc(data) {
 
 async function loadQrCode() {
   const qrSec = $('qr-section');
-  // Limpa conteúdo anterior (debug nodes)
   qrSec.innerHTML = `
     <p class="text-dim mb-8">Escaneie o QR Code com o WhatsApp:</p>
     <div class="qr-container"><img id="qr-img" src="" alt="Carregando..." class="qr-img"></div>
     <button class="btn-ghost btn-sm mt-8" id="btn-refresh-qr">↻ Atualizar QR</button>`;
   $('btn-refresh-qr').addEventListener('click', loadQrCode);
-
   qrSec.classList.remove('hidden');
   const qrImg = $('qr-img');
 
   try {
     const { baseUrl, token } = await getUazapiCreds();
 
-    for (const { path, method } of QR_ENDPOINTS) {
-      const res = await fetch(`${baseUrl}${path}`, {
-        method,
-        headers: { token, 'Content-Type': 'application/json' }
-      });
+    // Docs uazapi: POST /instance/connect sem body gera QR Code
+    const res = await fetch(`${baseUrl}/instance/connect`, {
+      method: 'POST',
+      headers: { token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
 
-      // Resposta é imagem direta
-      const ct = res.headers.get('content-type') || '';
-      if (ct.includes('image/')) {
-        const blob = await res.blob();
-        qrImg.src = URL.createObjectURL(blob);
-        qrImg.alt = 'QR Code';
-        return;
-      }
-
-      const data = await res.json().catch(() => ({}));
-      // Pula se 404
-      if (data.code === 404 || res.status === 404) continue;
-
-      const src = extractQrSrc(data);
-      if (src) {
-        qrImg.src = src.startsWith('data:') ? src : `data:image/png;base64,${src}`;
-        qrImg.alt = 'QR Code';
-        return;
-      }
+    // Resposta é imagem direta
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('image/')) {
+      const blob = await res.blob();
+      qrImg.src = URL.createObjectURL(blob);
+      qrImg.alt = 'QR Code';
+      return;
     }
 
-    // Nenhum endpoint funcionou
-    qrImg.style.display = 'none';
-    const msg = document.createElement('p');
-    msg.className = 'text-dim';
-    msg.textContent = 'QR Code não encontrado. Verifique se a instância uazapi está ativa.';
-    qrSec.insertBefore(msg, qrSec.querySelector('.qr-container'));
+    const data = await res.json().catch(() => ({}));
+    const src = extractQrSrc(data);
 
+    if (src) {
+      qrImg.src = src.startsWith('data:') ? src : `data:image/png;base64,${src}`;
+      qrImg.alt = 'QR Code';
+    } else {
+      // Mostra resposta completa para identificar o campo correto
+      qrImg.style.display = 'none';
+      const pre = document.createElement('pre');
+      pre.style.cssText = 'font-size:10px;color:#a78bfa;word-break:break-all;white-space:pre-wrap;max-height:200px;overflow:auto;margin-top:8px;background:#0f172a;padding:8px;border-radius:6px';
+      pre.textContent = JSON.stringify(data, null, 2);
+      qrSec.querySelector('.qr-container').replaceWith(pre);
+    }
   } catch (e) {
     qrImg.style.display = 'none';
     const errEl = document.createElement('p');
