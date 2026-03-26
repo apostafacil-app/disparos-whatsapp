@@ -815,52 +815,77 @@ async function reconnectWpp() {
   }
 }
 
+// Candidatos de endpoint para QR code (por ordem de tentativa)
+const QR_ENDPOINTS = [
+  '/instance/connect',
+  '/instance/qrcode',
+  '/get-qrcode',
+  '/generate-qrcode',
+  '/qrcode',
+  '/connect',
+];
+
+function extractQrSrc(data) {
+  // Busca recursivamente em qualquer campo que contenha base64 ou URL de imagem
+  const candidates = [
+    data.qrcode, data.qr, data.base64, data.imgBase64,
+    data.qrCode, data.image, data.img, data.urlCode,
+    data.data?.qrcode, data.data?.qr, data.data?.base64,
+    data.data?.imgBase64, data.instance?.qrcode,
+  ];
+  return candidates.find(v => v && typeof v === 'string' && v.length > 20) || '';
+}
+
 async function loadQrCode() {
   const qrSec = $('qr-section');
-  const qrImg = $('qr-img');
+  // Limpa conteúdo anterior (debug nodes)
+  qrSec.innerHTML = `
+    <p class="text-dim mb-8">Escaneie o QR Code com o WhatsApp:</p>
+    <div class="qr-container"><img id="qr-img" src="" alt="Carregando..." class="qr-img"></div>
+    <button class="btn-ghost btn-sm mt-8" id="btn-refresh-qr">↻ Atualizar QR</button>`;
+  $('btn-refresh-qr').addEventListener('click', loadQrCode);
+
   qrSec.classList.remove('hidden');
-  qrImg.src = '';
-  qrImg.style.display = 'block';
-  qrImg.alt = 'Carregando...';
+  const qrImg = $('qr-img');
 
   try {
     const { baseUrl, token } = await getUazapiCreds();
-    const res = await fetch(`${baseUrl}/qrcode`, {
-      method: 'GET',
-      headers: { token }
-    });
 
-    const contentType = res.headers.get('content-type') || '';
+    for (const path of QR_ENDPOINTS) {
+      const res = await fetch(`${baseUrl}${path}`, {
+        method: 'GET',
+        headers: { token }
+      });
 
-    // Resposta é uma imagem direta
-    if (contentType.includes('image/')) {
-      const blob = await res.blob();
-      qrImg.src = URL.createObjectURL(blob);
-      qrImg.alt = 'QR Code';
-      return;
+      // Resposta é imagem direta
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('image/')) {
+        const blob = await res.blob();
+        qrImg.src = URL.createObjectURL(blob);
+        qrImg.alt = 'QR Code';
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      // Pula se 404
+      if (data.code === 404 || res.status === 404) continue;
+
+      const src = extractQrSrc(data);
+      if (src) {
+        qrImg.src = src.startsWith('data:') ? src : `data:image/png;base64,${src}`;
+        qrImg.alt = 'QR Code';
+        return;
+      }
     }
 
-    const data = await res.json().catch(() => ({}));
+    // Nenhum endpoint funcionou
+    qrImg.style.display = 'none';
+    const msg = document.createElement('p');
+    msg.className = 'text-dim';
+    msg.textContent = 'QR Code não encontrado. Verifique se a instância uazapi está ativa.';
+    qrSec.insertBefore(msg, qrSec.querySelector('.qr-container'));
 
-    // Tenta todos os campos possíveis da uazapi
-    const src = data.qrcode || data.qr || data.base64 || data.imgBase64
-      || data.qrCode || data.image || data.img
-      || (data.data && (data.data.qrcode || data.data.qr || data.data.base64))
-      || '';
-
-    if (src) {
-      qrImg.src = src.startsWith('data:') ? src : `data:image/png;base64,${src}`;
-      qrImg.alt = 'QR Code';
-    } else {
-      // Mostra resposta bruta para debug
-      qrImg.style.display = 'none';
-      const debugEl = document.createElement('pre');
-      debugEl.style.cssText = 'font-size:10px;color:#8892a8;word-break:break-all;white-space:pre-wrap;max-height:120px;overflow:auto';
-      debugEl.textContent = 'Resposta da API:\n' + JSON.stringify(data, null, 2);
-      qrSec.appendChild(debugEl);
-    }
   } catch (e) {
-    qrImg.alt = '';
     qrImg.style.display = 'none';
     const errEl = document.createElement('p');
     errEl.className = 'text-dim';
