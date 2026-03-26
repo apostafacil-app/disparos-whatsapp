@@ -750,18 +750,18 @@ async function checkWppStatus() {
 
   try {
     const { baseUrl, token } = await getUazapiCreds();
-    const res = await fetch(`${baseUrl}/status`, {
+    // uazapi: GET /instance/status
+    const res = await fetch(`${baseUrl}/instance/status`, {
       method: 'GET',
       headers: { token }
     });
     const data = await res.json().catch(() => ({}));
 
-    // uazapi retorna { connected: true } ou { state: "CONNECTED" } dependendo da versão
     const connected = data.connected === true
       || data.state === 'CONNECTED'
       || data.status === 'CONNECTED'
       || data.status === 'open'
-      || String(data.state || data.status || '').toUpperCase().includes('CONNECT');
+      || String(data.state || data.status || data.data?.state || '').toUpperCase().includes('CONNECT');
 
     if (connected) {
       dot.className = 'status-dot connected';
@@ -792,13 +792,13 @@ async function reconnectWpp() {
 
   try {
     const { baseUrl, token } = await getUazapiCreds();
-    // Tenta /reconnect primeiro, fallback para /restart
-    const res = await fetch(`${baseUrl}/reconnect`, {
+    // uazapi: POST /instance/connect (reconecta e gera novo QR)
+    const res = await fetch(`${baseUrl}/instance/connect`, {
       method: 'POST',
       headers: { token, 'Content-Type': 'application/json' }
     });
     if (!res.ok) {
-      await fetch(`${baseUrl}/restart`, {
+      await fetch(`${baseUrl}/instance/restart`, {
         method: 'POST',
         headers: { token, 'Content-Type': 'application/json' }
       });
@@ -817,12 +817,10 @@ async function reconnectWpp() {
 
 // Candidatos de endpoint para QR code (por ordem de tentativa)
 const QR_ENDPOINTS = [
-  '/instance/connect',
-  '/instance/qrcode',
-  '/get-qrcode',
-  '/generate-qrcode',
-  '/qrcode',
-  '/connect',
+  { path: '/instance/connect', method: 'POST' },
+  { path: '/instance/qrcode',  method: 'GET'  },
+  { path: '/qrcode',           method: 'GET'  },
+  { path: '/connect',          method: 'POST' },
 ];
 
 function extractQrSrc(data) {
@@ -851,10 +849,10 @@ async function loadQrCode() {
   try {
     const { baseUrl, token } = await getUazapiCreds();
 
-    for (const path of QR_ENDPOINTS) {
+    for (const { path, method } of QR_ENDPOINTS) {
       const res = await fetch(`${baseUrl}${path}`, {
-        method: 'GET',
-        headers: { token }
+        method,
+        headers: { token, 'Content-Type': 'application/json' }
       });
 
       // Resposta é imagem direta
