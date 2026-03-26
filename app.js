@@ -21,6 +21,12 @@ function $(id) { return document.getElementById(id); }
 function show(id) { $(id).classList.remove('hidden'); }
 function hide(id) { $(id).classList.add('hidden'); }
 
+// Esconde todas as telas e mostra apenas a solicitada
+function showScreen(id) {
+  ['screen-setup', 'screen-login', 'screen-app'].forEach(s => hide(s));
+  show(id);
+}
+
 function showEl(el) { el.style.display = ''; }
 function hideEl(el) { el.style.display = 'none'; }
 
@@ -132,19 +138,19 @@ async function resolveInitialScreen() {
   const sbKey = localStorage.getItem('sb_key');
 
   if (!sbUrl || !sbKey) {
-    show('screen-setup');
+    showScreen('screen-setup');
     return;
   }
 
   try {
     initSupabase(sbUrl, sbKey);
   } catch {
-    show('screen-setup');
+    showScreen('screen-setup');
     return;
   }
 
   if (!isLoggedIn()) {
-    show('screen-login');
+    showScreen('screen-login');
     return;
   }
 
@@ -152,7 +158,7 @@ async function resolveInitialScreen() {
 }
 
 async function loadApp() {
-  show('screen-app');
+  showScreen('screen-app');
   await Promise.all([
     loadListasSelect(),
     loadTemplatesSelect(),
@@ -953,8 +959,7 @@ function bindEvents() {
       await sb.from('disparos_config').select('id').limit(1);
       localStorage.setItem('sb_url', url);
       localStorage.setItem('sb_key', key);
-      hide('screen-setup');
-      show('screen-login');
+      showScreen('screen-login');
     } catch (e) {
       flashMsg('setup-error', 'Erro ao conectar: ' + e.message, true);
     }
@@ -968,7 +973,6 @@ function bindEvents() {
       const ok = await checkLogin(pw);
       if (ok) {
         setLoggedIn();
-        hide('screen-login');
         await loadApp();
       } else {
         flashMsg('login-error', 'Senha incorreta.', true);
