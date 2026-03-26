@@ -686,30 +686,32 @@ async function sendStep(number, step) {
 
   switch (step.type) {
     case 'text':
-      endpoint = `${baseUrl}/send-text`;
+      endpoint = `${baseUrl}/send/text`;
       body = { number, text: step.content };
       break;
 
     case 'image':
-      endpoint = `${baseUrl}/send-image`;
+      endpoint = `${baseUrl}/send/media`;
       body = {
         number,
-        image: step.dataUrl ? step.dataUrl.split(',')[1] : step.content, // base64 sem prefixo
-        caption: step.caption || ''
+        type: 'image',
+        file: step.dataUrl || step.content,
+        text: step.caption || ''
       };
       break;
 
     case 'audio':
-      endpoint = `${baseUrl}/send-audio`;
-      body = { number, audio: step.content, ptt: true };
+      endpoint = `${baseUrl}/send/media`;
+      body = { number, type: 'ptt', file: step.content };
       break;
 
     case 'document':
-      endpoint = `${baseUrl}/send-document`;
+      endpoint = `${baseUrl}/send/media`;
       body = {
         number,
-        document: step.dataUrl ? step.dataUrl.split(',')[1] : '',
-        filename: step.filename || 'arquivo'
+        type: 'document',
+        file: step.dataUrl || '',
+        docName: step.filename || 'arquivo'
       };
       break;
 
@@ -764,11 +766,10 @@ async function checkWppStatus() {
       return;
     }
 
-    const connected = data.connected === true
-      || data.state === 'CONNECTED'
-      || data.status === 'CONNECTED'
-      || data.status === 'open'
-      || String(data.state || data.status || data.data?.state || '').toUpperCase().includes('CONNECT');
+    // Spec uazapi: { instance: { status: 'connected' }, status: { connected: true } }
+    const connected = data.status?.connected === true
+      || data.instance?.status === 'connected'
+      || data.connected === true;
 
     if (connected) {
       dot.className = 'status-dot connected';
