@@ -268,7 +268,7 @@ function buildStepBody(type, id) {
   const d = stepsData[id] || {};
   switch (type) {
     case 'text':
-      return `<textarea class="step-content" placeholder="Digite sua mensagem...&#10;&#10;Use *negrito*, _itálico_, ~tachado~">${d.content || ''}</textarea>`;
+      return `<textarea class="step-content" placeholder="Digite sua mensagem...&#10;&#10;Use *negrito*, _itálico_, ~tachado~&#10;Use {{nome}} para personalizar com o nome do contato.">${d.content || ''}</textarea>`;
     case 'image':
       return `
         <div class="step-file-wrap">
