@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Disparos WhatsApp</title>
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <!-- Supabase SDK removido: todas as chamadas ao banco passam pelo servidor -->
 </head>
 <body>
 
@@ -14,19 +14,17 @@
 ══════════════════════════════════════════ -->
 <div id="screen-setup" class="screen hidden">
   <div class="center-box">
-    <div class="logo">📲</div>
-    <h1 class="center-title">Disparos <em>WhatsApp</em></h1>
-    <p class="subtitle">Configure o Supabase para começar</p>
-
-    <div class="form-group">
-      <label>Supabase Project URL</label>
-      <input type="url" id="setup-url" placeholder="https://xxxxxxxxxxxx.supabase.co" autocomplete="off">
+    <div class="logo">⚙️</div>
+    <h1 class="center-title">Servidor <em>não configurado</em></h1>
+    <p class="subtitle">As variáveis de ambiente não estão definidas no Render</p>
+    <div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:16px;text-align:left;margin-top:16px">
+      <p style="margin:0 0 8px;font-weight:600;color:#854d0e">Configure no painel do Render:</p>
+      <code style="display:block;font-size:13px;color:#1e293b;line-height:1.8">
+        SUPABASE_URL<br>
+        SUPABASE_SERVICE_KEY<br>
+        UAZAPI_ADMIN_TOKEN
+      </code>
     </div>
-    <div class="form-group">
-      <label>Supabase Anon Key</label>
-      <input type="password" id="setup-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
-    </div>
-    <button class="btn-primary btn-full" id="btn-setup">Salvar e Continuar →</button>
     <p id="setup-error" class="error-msg hidden"></p>
   </div>
 </div>
@@ -292,21 +290,6 @@
     ══════════════════════════════════════ -->
     <div id="tab-config" class="tab-content">
       <div class="config-grid">
-
-        <div class="card">
-          <h2 class="mb-4">Supabase</h2>
-          <p class="text-dim mb-16">Credenciais de infraestrutura — salvas localmente no browser</p>
-          <div class="form-group">
-            <label>Project URL</label>
-            <input type="url" id="config-sb-url" placeholder="https://xxxx.supabase.co">
-          </div>
-          <div class="form-group">
-            <label>Anon Key</label>
-            <input type="password" id="config-sb-key" placeholder="eyJ...">
-          </div>
-          <button class="btn-primary" id="btn-save-supabase">Salvar Supabase</button>
-          <p id="config-sb-msg" class="success-msg hidden"></p>
-        </div>
 
         <div class="card">
           <h2 class="mb-4">uazapi</h2>

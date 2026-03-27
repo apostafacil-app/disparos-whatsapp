@@ -5,12 +5,16 @@
 
 'use strict';
 
-// ─── Supabase client ───────────────────────
-let sb = null;
-
-function initSupabase(url, key) {
-  const { createClient } = supabase;
-  sb = createClient(url, key);
+// ─── DB via servidor (sem credenciais no cliente) ──────────────────────────
+async function dbFetch(path, opts = {}) {
+  const res = await fetch('/api/db' + path, {
+    method: opts.method || 'GET',
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+  return json;
 }
 
 // ─── Utilitários gerais ────────────────────
@@ -110,20 +114,14 @@ function newId() { return `step_${++stepCounter}_${Date.now()}`; }
 // ══════════════════════════════════════════
 
 async function getConfig() {
-  if (!sb) return null;
-  const { data } = await sb.from('disparos_config').select('*').limit(1).maybeSingle();
-  return data;
+  try { return await dbFetch('/config'); } catch { return null; }
 }
 
 async function ensureConfig() {
   const cfg = await getConfig();
   if (!cfg) {
     const defaultHash = await hashPassword('admin123');
-    await sb.from('disparos_config').insert({
-      instance_url: '',
-      api_token: '',
-      senha_app: defaultHash
-    });
+    await dbFetch('/config', { method: 'POST', body: { instance_url: '', api_token: '', senha_app: defaultHash } });
     return await getConfig();
   }
   return cfg;
@@ -160,25 +158,16 @@ async function fetchServerConfig() {
   try {
     const res = await fetch('/api/config');
     if (res.ok) window._serverConfig = await res.json();
+    else window._serverConfig = null;
   } catch {
-    // Sem servidor (GitHub Pages / local) — usa localStorage como fallback
+    window._serverConfig = null;
   }
 }
 
 async function resolveInitialScreen() {
   await fetchServerConfig();
 
-  const sbUrl = window._serverConfig?.sbUrl || localStorage.getItem('sb_url');
-  const sbKey = window._serverConfig?.sbKey || localStorage.getItem('sb_key');
-
-  if (!sbUrl || !sbKey) {
-    showScreen('screen-setup');
-    return;
-  }
-
-  try {
-    initSupabase(sbUrl, sbKey);
-  } catch {
+  if (!window._serverConfig?.ok) {
     showScreen('screen-setup');
     return;
   }
@@ -509,10 +498,7 @@ async function saveLista() {
   if (!nome || !numeros) { flashMsg('lista-msg', 'Preencha nome e números.', true); return; }
 
   const parsed = parseContacts(numeros);
-  await sb.from('disparos_listas').insert({
-    nome,
-    numeros: JSON.stringify(parsed)
-  });
+  await dbFetch('/listas', { method: 'POST', body: { nome, numeros: JSON.stringify(parsed) } });
 
   flashMsg('lista-msg', `Lista "${nome}" salva com ${parsed.length} contatos!`);
   $('lista-nome').value = '';
@@ -523,13 +509,13 @@ async function saveLista() {
 
 async function deleteLista(id) {
   if (!confirm('Excluir esta lista?')) return;
-  await sb.from('disparos_listas').delete().eq('id', id);
+  await dbFetch(`/listas/${id}`, { method: 'DELETE' });
   await loadListas();
   await loadListasSelect();
 }
 
 async function loadListas() {
-  const { data } = await sb.from('disparos_listas').select('*').order('created_at', { ascending: false });
+  const data = await dbFetch('/listas').catch(() => []);
   const container = $('listas-list');
 
   if (!data || !data.length) {
@@ -553,7 +539,7 @@ async function loadListas() {
 }
 
 async function loadListasSelect() {
-  const { data } = await sb.from('disparos_listas').select('id, nome').order('nome');
+  const data = await dbFetch('/listas').catch(() => []);
   const sel = $('lista-select');
   sel.innerHTML = '<option value="">Carregar lista salva...</option>';
   (data || []).forEach(l => {
@@ -565,7 +551,7 @@ async function loadListasSelect() {
 }
 
 async function carregarListaEmDisparos(id) {
-  const { data } = await sb.from('disparos_listas').select('numeros').eq('id', id).single();
+  const data = await dbFetch(`/listas/${id}`).catch(() => null);
   if (!data) return;
   const nums = JSON.parse(data.numeros || '[]');
   $('contacts-input').value = nums.join('\n');
@@ -588,19 +574,19 @@ async function saveTemplate(nome, steps) {
     filename: s.filename || '',
     dataUrl: s.dataUrl || '' // mantemos para uso local
   }));
-  await sb.from('disparos_templates').insert({ nome, steps: cleanSteps });
+  await dbFetch('/templates', { method: 'POST', body: { nome, steps: cleanSteps } });
   return true;
 }
 
 async function deleteTemplate(id) {
   if (!confirm('Excluir este template?')) return;
-  await sb.from('disparos_templates').delete().eq('id', id);
+  await dbFetch(`/templates/${id}`, { method: 'DELETE' });
   await loadTemplates();
   await loadTemplatesSelect();
 }
 
 async function loadTemplates() {
-  const { data } = await sb.from('disparos_templates').select('*').order('created_at', { ascending: false });
+  const data = await dbFetch('/templates').catch(() => []);
   const container = $('templates-list');
 
   if (!data || !data.length) {
@@ -624,7 +610,7 @@ async function loadTemplates() {
 }
 
 async function loadTemplatesSelect() {
-  const { data } = await sb.from('disparos_templates').select('id, nome').order('nome');
+  const data = await dbFetch('/templates').catch(() => []);
   const sel = $('template-select');
   sel.innerHTML = '<option value="">Carregar template...</option>';
   (data || []).forEach(t => {
@@ -636,7 +622,7 @@ async function loadTemplatesSelect() {
 }
 
 async function carregarTemplateEmDisparos(id) {
-  const { data } = await sb.from('disparos_templates').select('steps').eq('id', id).single();
+  const data = await dbFetch(`/templates/${id}`).catch(() => null);
   if (!data) return;
   loadStepsIntoContainer('steps-list', data.steps || []);
   document.querySelector('[data-tab="disparos"]').click();
@@ -647,11 +633,11 @@ async function carregarTemplateEmDisparos(id) {
 // ══════════════════════════════════════════
 
 async function saveHistorico(entry) {
-  await sb.from('disparos_historico').insert(entry);
+  return await dbFetch('/historico', { method: 'POST', body: entry });
 }
 
 async function loadHistorico() {
-  const { data } = await sb.from('disparos_historico').select('*').order('created_at', { ascending: false }).limit(50);
+  const data = await dbFetch('/historico').catch(() => []);
   const container = $('historico-list');
 
   if (!data || !data.length) {
@@ -691,15 +677,6 @@ async function loadHistorico() {
 // ══════════════════════════════════════════
 
 async function loadConfigFields() {
-  // Se config vem do servidor, esconde a seção Supabase (não precisa configurar)
-  const sbCard = document.querySelector('#tab-config .config-grid .card:first-child');
-  if (window._serverConfig?.sbUrl) {
-    if (sbCard) sbCard.style.display = 'none';
-  } else {
-    $('config-sb-url').value = localStorage.getItem('sb_url') || '';
-    $('config-sb-key').value = localStorage.getItem('sb_key') || '';
-  }
-
   // Admin token: lido do localStorage (nunca vem do servidor por segurança)
   $('config-uazapi-admintoken').value = localStorage.getItem('uazapi_admintoken') || '';
 
@@ -762,13 +739,15 @@ async function saveUazapi() {
   const token = $('config-uazapi-token').value.trim();
   if (!url || !token) { flashMsg('config-uazapi-msg', 'Preencha URL e token da instância.', true); return; }
 
-  const { error } = await sb.from('disparos_config').upsert({
-    id: (await getConfig())?.id,
-    instance_url: url,
-    api_token: token
-  }, { onConflict: 'id' });
-
-  if (error) { flashMsg('config-uazapi-msg', 'Erro ao salvar: ' + error.message, true); return; }
+  try {
+    const cfg = await getConfig();
+    const id  = cfg?.id;
+    if (id) {
+      await dbFetch(`/config/${id}`, { method: 'PUT', body: { instance_url: url, api_token: token } });
+    } else {
+      await dbFetch('/config', { method: 'POST', body: { instance_url: url, api_token: token } });
+    }
+  } catch (e) { flashMsg('config-uazapi-msg', 'Erro ao salvar: ' + e.message, true); return; }
   flashMsg('config-uazapi-msg', 'Configurações uazapi salvas!');
 }
 
@@ -780,8 +759,8 @@ async function saveSenha() {
   if (nova.length < 6) { flashMsg('config-senha-msg', 'Senha mínima: 6 caracteres.', true); return; }
 
   const hash = await hashPassword(nova);
-  const cfg = await getConfig();
-  await sb.from('disparos_config').update({ senha_app: hash }).eq('id', cfg.id);
+  const cfg  = await getConfig();
+  await dbFetch(`/config/${cfg.id}/password`, { method: 'PATCH', body: { senha_app: hash } });
   flashMsg('config-senha-msg', 'Senha alterada com sucesso!');
   $('config-senha-nova').value = '';
   $('config-senha-confirmar').value = '';
@@ -1141,14 +1120,14 @@ async function startCampaign() {
   addLogLine('info', `Campanha iniciada — ${contacts.length} contatos, ${steps.length} bloco(s)`);
 
   // Salvar início no histórico
-  const { data: histData } = await sb.from('disparos_historico').insert({
+  const histData = await dbFetch('/historico', { method: 'POST', body: {
     nome: `Campanha ${formatDate(new Date().toISOString())}`,
     total: contacts.length,
     enviados: 0,
     erros: 0,
     status: 'em_andamento',
     log: []
-  }).select().single();
+  }}).catch(() => null);
   campaign.histId = histData?.id;
 
   try {
@@ -1205,12 +1184,12 @@ async function startCampaign() {
 
   // Atualizar histórico
   if (campaign.histId) {
-    await sb.from('disparos_historico').update({
+    await dbFetch(`/historico/${campaign.histId}`, { method: 'PATCH', body: {
       enviados: campaign.sentCount,
       erros: campaign.errorCount,
       status: finalStatus,
       log: campaign.log
-    }).eq('id', campaign.histId);
+    }}).catch(() => {});
   }
 
   await loadHistorico();
@@ -1281,24 +1260,6 @@ async function confirmSaveTemplate() {
 // ══════════════════════════════════════════
 
 function bindEvents() {
-  // Setup
-  $('btn-setup').addEventListener('click', async () => {
-    const url = $('setup-url').value.trim();
-    const key = $('setup-key').value.trim();
-    if (!url || !key) { flashMsg('setup-error', 'Preencha URL e Anon Key.', true); return; }
-
-    try {
-      initSupabase(url, key);
-      // Testar conexão
-      await sb.from('disparos_config').select('id').limit(1);
-      localStorage.setItem('sb_url', url);
-      localStorage.setItem('sb_key', key);
-      showScreen('screen-login');
-    } catch (e) {
-      flashMsg('setup-error', 'Erro ao conectar: ' + e.message, true);
-    }
-  });
-
   // Login
   $('btn-login').addEventListener('click', async () => {
     const pw = $('login-password').value;
@@ -1395,16 +1356,6 @@ function bindEvents() {
 
   // Histórico
   $('btn-refresh-historico').addEventListener('click', loadHistorico);
-
-  // Configurações — Supabase
-  $('btn-save-supabase').addEventListener('click', () => {
-    const url = $('config-sb-url').value.trim();
-    const key = $('config-sb-key').value.trim();
-    if (!url || !key) { flashMsg('config-sb-msg', 'Preencha URL e Anon Key.', true); return; }
-    localStorage.setItem('sb_url', url);
-    localStorage.setItem('sb_key', key);
-    flashMsg('config-sb-msg', 'Salvo. Recarregue a página para aplicar.');
-  });
 
   // Configurações — uazapi
   $('btn-create-instance').addEventListener('click', createInstance);
