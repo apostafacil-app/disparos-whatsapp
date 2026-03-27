@@ -272,7 +272,17 @@ function buildStepBody(type, id) {
         </div>
         <input type="text" class="step-caption" placeholder="Legenda (opcional)" value="${d.caption || ''}">`;
     case 'audio':
-      return `<input type="url" class="step-content" placeholder="URL do áudio (PTT) — ex: https://..." value="${d.content || ''}">`;
+      return `
+        <div class="file-upload-area">
+          <label class="file-upload-label">
+            <input type="file" class="step-file" accept="audio/*,.ogg,.opus,.mp3,.m4a,.wav,.aac">
+            <span class="file-upload-btn">🎵 Selecionar áudio</span>
+          </label>
+          <div class="file-preview ${d.dataUrl ? 'visible' : ''}">
+            <span class="file-preview-icon">🎵</span>
+            <span class="file-preview-name">${escapeHtml(d.filename || '')}</span>
+          </div>
+        </div>`;
     case 'document':
       return `
         <div class="step-file-wrap">
@@ -373,6 +383,7 @@ function bindStepBodyEvents(el, id) {
           if (img) img.src = data.dataUrl;
           const nameEl = preview.querySelector('.file-preview-name');
           if (nameEl) nameEl.textContent = file.name;
+          data.filename = data.filename || file.name;
         }
 
         // Atualiza campo de nome se documento
@@ -463,7 +474,7 @@ function buildBubble(step, time) {
         : `<div style="opacity:.5">🖼️ Imagem selecionada</div>`;
       break;
     case 'audio':
-      inner = `<div class="wpp-bubble-audio"><span>🎵</span> Mensagem de voz${step.content ? '' : ' <em style="opacity:.5">(sem URL)</em>'}</div>`;
+      inner = `<div class="wpp-bubble-audio"><span>🎵</span> Mensagem de voz${step.dataUrl ? ` <em style="opacity:.6;font-size:11px">${escapeHtml(step.filename || 'áudio')}</em>` : ' <em style="opacity:.5">(sem arquivo)</em>'}</div>`;
       break;
     case 'document':
       inner = `<div class="wpp-bubble-doc"><span class="wpp-bubble-doc-icon">📄</span>${escapeHtml(step.filename || 'documento')}</div>`;
@@ -804,7 +815,7 @@ async function sendStep(number, step, contactName = '') {
 
     case 'audio':
       endpoint = `${baseUrl}/send/media`;
-      body = { number, type: 'ptt', file: step.content };
+      body = { number, type: 'ptt', file: step.dataUrl || step.content };
       break;
 
     case 'document':
